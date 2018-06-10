@@ -10,7 +10,9 @@ const todos = [{
     text: 'first test todo'
 },{
     _id: new ObjectID(),
-    text: 'second test todo'
+    text: 'second test todo',
+    completed: true,
+    completedAt: 3422
 }];
 
 
@@ -43,10 +45,8 @@ describe('POST /todos', () => {
         done(e)
     });
     });
-    });
+});
     it('shoud not create todo with invalid bodydata',(done) => {
-
-
             supertest(app)
                 .post('/todos')
                 .send({})
@@ -58,10 +58,10 @@ describe('POST /todos', () => {
                 Todo.find().then((todos) => {
                     expect(todos.length).toBe(2)
                     done();
-}).catch((e) => {
+        }).catch((e) => {
     done(e)
-});
-});
+        });
+                                });
     });
 });
 
@@ -134,3 +134,38 @@ describe('DELETE /todos/:id', () => {
         .end(done);
     });
 });
+
+describe('PATCH /todos/:id', () =>{
+    it('should update the todo', (done) =>{
+        var firstID = todos[0]._id.toHexString();
+        var text = "something funny";
+        var completed = true;
+            supertest(app)
+                .patch(`/todos/${firstID}`)
+                .send({text,completed})
+
+                .expect(200)
+                .expect((res) => {
+                    expect(res.body.todo.completed).toBe(true);
+                    expect(res.body.todo.text).toBe("something funny");
+                    expect(res.body.todo.completedAt).toBeA('number');
+            })
+        .end(done)
+
+})
+    it('should clear completedAt when todo is not completed',(done) => {
+        var secondId = todos[1]._id.toHexString();
+        var text = "Going solo";
+         var completed = false;
+            supertest(app)
+                .patch(`/todos/${secondId}`)
+                .send({text,completed})
+                .expect(200)
+                .expect((res) => {
+                    expect(res.body.todo.text).toBe("Going solo");
+                    expect(res.body.todo.completed).toBe(false);
+                    expect(res.body.todo.compleatedAt).toNotExist();
+            })
+            .end(done)
+    })
+})
