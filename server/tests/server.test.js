@@ -4,47 +4,35 @@ const{ObjectID} = require('mongodb');
 
 const {app} = require ('./../server');
 const {Todo} = require('./../models/todo');
+const {User} = require('./../models/user');
+const {todos, populateTodos, users, populateUsers} = require('./seed/seed');
 
-const todos = [{
-    _id: new ObjectID(),
-    text: 'first test todo'
-},{
-    _id: new ObjectID(),
-    text: 'second test todo',
-    completed: true,
-    completedAt: 3422
-}];
-
-
-beforeEach((done) => {
-   Todo.remove({}).then(() => {
-    return Todo.insertMany(todos);
-}).then(()=> done())
-});
+beforeEach(populateUsers);
+beforeEach(populateTodos);
 
 describe('POST /todos', () => {
     it('should create a new todo', (done) => {
         var text = 'Test todo text';
 
            supertest(app)
-               .post('/todos')
-               .send({text})
-               .expect(200)
-               .expect((res) =>{
+                 .post('/todos')
+                .send({text})
+                 .expect(200)
+                .expect((res) =>{
                    expect(res.body.text).toBe(text);
-           })
-            .end((err,res) =>{
-       if(err){
-          return done(err);
-       }
-       Todo.find({text}).then((todos) =>{
-           expect(todos.length).toBe(1);
-           expect(todos[0].text).toBe(text);
-           done();
-    }).catch((e) => {
-        done(e)
-    });
-    });
+                })
+                .end((err,res) =>{
+                    if(err){
+                        return done(err);
+                    }
+                    Todo.find({text}).then((todos) =>{
+                        expect(todos.length).toBe(1);
+                        expect(todos[0].text).toBe(text);
+                        done();
+                    }).catch((e) => {
+                        done(e)
+                     });
+                });
 });
     it('shoud not create todo with invalid bodydata',(done) => {
             supertest(app)
@@ -58,10 +46,10 @@ describe('POST /todos', () => {
                 Todo.find().then((todos) => {
                     expect(todos.length).toBe(2)
                     done();
-        }).catch((e) => {
-    done(e)
-        });
-                                });
+                }).catch((e) => {
+                     done(e)
+                });
+                });
     });
 });
 
@@ -72,8 +60,8 @@ describe('GET/ todos',() => {
             .expect(200)
             .expect((res) => {
                 expect(res.body.todos.length).toBe(2);
-        })
-    .end(done);
+             })
+            .end(done);
 });
 });
 describe('GET /todos/:id', () =>{
@@ -83,8 +71,8 @@ describe('GET /todos/:id', () =>{
             .expect(200)
             .expect((res) => {
                 expect(res.body.todo.text).toBe(todos[0].text);
-        })
-        .end(done);
+            })
+            .end(done);
 });
     it('should return 404 if todo not found', (done) => {
         supertest(app)
@@ -108,18 +96,18 @@ describe('DELETE /todos/:id', () => {
             .expect(200)
             .expect((res) => {
                 expect(res.body.todo._id).toBe(hexId);
-        })
+             })
             .end((err,res) => {
                 if (err) {
                     return done(err);
                 }
                 Todo.findById(hexId).then((todo) => {
                     expect(todo).toNotExist()
-        done()
-    }).catch((e) => {
-        done(e)
-    });
-    });
+                    done()
+                }).catch((e) => {
+                    done(e)
+                });
+            });
     });
     it('should return 404 if todo not found', (done) => {
         supertest(app)
@@ -149,10 +137,10 @@ describe('PATCH /todos/:id', () =>{
                     expect(res.body.todo.completed).toBe(true);
                     expect(res.body.todo.text).toBe("something funny");
                     expect(res.body.todo.completedAt).toBeA('number');
-            })
-        .end(done)
+                })
+                .end(done)
 
-})
+});
     it('should clear completedAt when todo is not completed',(done) => {
         var secondId = todos[1]._id.toHexString();
         var text = "Going solo";
@@ -165,7 +153,112 @@ describe('PATCH /todos/:id', () =>{
                     expect(res.body.todo.text).toBe("Going solo");
                     expect(res.body.todo.completed).toBe(false);
                     expect(res.body.todo.compleatedAt).toNotExist();
+                 })
+                .end(done)
+    });
+});
+describe ('Get /users/me', () =>{
+    it('should return user if authenticated', (done) => {
+        supertest(app)
+            .get('/users/me')
+            .set('x-auth', users[0].tokens[0].token)
+            .expect(200)
+            .expect((res) => {
+                expect(res.body._id).toBe(users[0]._id.toHexString());
+                expect(res.body.email).toBe(users[0].email);
             })
-            .end(done)
-    })
-})
+            .end(done);
+    });
+    it('should return 401 if not authenticated', (done) => {
+        supertest(app)
+        .get('/users/me')
+        .expect(401)
+        .expect((res) => {
+            expect(res.body).toEqual({})
+         })
+        .end(done)
+
+    });
+});
+describe ('POST /users', () => {
+    it('should create a user', (done) => {
+        var email = 'exampe@example.com'
+        var password = '123aew?'
+            supertest(app)
+                .post('/users')
+                .send({email,password})
+                .expect(200)
+                .expect((res) => {
+                    expect(res.body.email).toBe(email);
+                    expect(res.headers['x-auth']).toExist();
+                    expect(res.body._id).toExist();
+                })
+                .end((err) => {
+                    if (err){
+                        return done(err);
+                    }
+                        User.findOne({email}).then((user) => {
+                            expect(user).toExist();
+                            expect(user.password).toNotBe(password);
+                            done();
+                        });
+                });
+    });
+    it('should return validation errors if request invalid', (done) =>{
+        var email = 'example.com';
+        var password = 'e123224';
+            supertest(app)
+                .post('/users')
+                .send({email,password})
+                .expect(400)
+                .end((err,res) =>{
+                    if(err){
+                        done(err)
+                    }
+                    User.find().then((users) => {
+                        expect(users.length).toBe(2)
+                     done()
+                    }).catch((e) =>{
+                        done(e)
+                    });
+            });
+    });
+it('should return validation errors if password below 6 caracters invalid', (done) =>{
+    var email = 'example.com';
+    var password = 'e123';
+        supertest(app)
+            .post('/users')
+            .send({email,password})
+            .expect(400)
+            .end((err,res) =>{
+                if(err){
+                     done(err)
+                }
+                User.find().then((users) => {
+                    expect(users.length).toBe(2)
+                    done()
+                }).catch((e) =>{
+                     done(e)
+                });
+});
+});
+    it('shoult not create user if email in use', (done) => {
+    var email = users[0].email;
+    var password = '123456';
+        supertest(app)
+            .post('/users')
+            .send({email,password})
+            .expect(400)
+            .end((err,res) => {
+                if(err){
+                    done(err)
+                }
+                User.find().then((users) => {
+                    expect(users.length).toBe(2)
+                    done()
+                }).catch((e) =>{
+                    done(e)
+                });
+        });
+    });
+});
