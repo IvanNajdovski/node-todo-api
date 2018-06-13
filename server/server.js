@@ -26,7 +26,6 @@ app.post('/todos', (req,res) => {
         res.status(400).send(e);
 });
 });
-console.log("ivan");
 app.get('/todos', (req,res) => {
    Todo.find().then((todos) => {
        res.send({
@@ -119,6 +118,14 @@ User.findByCredentials(body.email,body.password).then((user) => {
 });
 }).catch((e) => {
     res.status(400).send();
+});
+});
+
+app.delete('/users/me/token', authenticate, (req,res ) => {
+   req.user.removeToken(req.token).then(() => {
+       res.status(200).send()
+}, () => {
+        res.status(400).send();
 });
 });
 
